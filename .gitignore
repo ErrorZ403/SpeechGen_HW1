@@ -1,0 +1,9 @@
+# venv
+.venv
+
+# something
+__pycache__
+
+# files
+*.wav
+*.png
