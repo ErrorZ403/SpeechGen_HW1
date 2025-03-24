@@ -9,31 +9,31 @@ from ptflops import get_model_complexity_info
 from melbanks.melbanks import LogMelFilterBanks
 
 class SpeechCNN(pl.LightningModule):
-    def __init__(self, n_mels=40):
+    def __init__(self, n_mels=40, groups=1):
         super().__init__()
         self.save_hyperparameters()
 
         self.mel_banks = LogMelFilterBanks(n_mels = n_mels)
         
         self.conv_layers = nn.Sequential(
-            nn.Conv1d(n_mels, 32, kernel_size=3, padding=1),
+            nn.Conv1d(n_mels, 32, kernel_size=3, padding=1, groups=groups),
             nn.ReLU(),
             nn.MaxPool1d(2),
-            nn.Conv1d(32, 64, kernel_size=3, padding=1),
+            nn.Conv1d(32, 64, kernel_size=3, padding=1, groups=groups),
             nn.ReLU(),
             nn.MaxPool1d(2),
-            nn.Conv1d(64, 128, kernel_size=3, padding=1),
+            nn.Conv1d(64, 32, kernel_size=3, padding=1, groups=groups),
             nn.ReLU(),
             nn.MaxPool1d(2)
         )
         
-        self.flatten_size = 128 * 12
+        self.flatten_size = 32 * 12
         
         self.fc_layers = nn.Sequential(
-            nn.Linear(self.flatten_size, 256),
+            nn.Linear(self.flatten_size, 128),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(256, 2)
+            nn.Linear(128, 2)
         )
         
         self.train_loss = torchmetrics.MeanMetric()
