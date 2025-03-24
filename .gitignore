@@ -7,3 +7,10 @@ __pycache__
 # files
 *.wav
 *.png
+*.pt
+*.ckpt
+*.tar.gz
+
+# dirs
+checkpoints/
+SpeechCommands 
