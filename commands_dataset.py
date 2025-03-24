@@ -51,8 +51,7 @@ class FullSpeechCommands(SPEECHCOMMANDS):
     
     def __getitem__(self, index):
         idx = self._walker.index(self.data[index])
-        waveform, _, label, _,  = super().__getitem__(idx)
-        print(label)
+        waveform, _, label, _, _ = super().__getitem__(idx)
         label = labels.index(label)
         return (waveform, torch.tensor(label, dtype=torch.long))
 

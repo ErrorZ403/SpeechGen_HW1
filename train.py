@@ -1,63 +1,15 @@
 from commands_dataset import BinarySpeechCommands, FullSpeechCommands, collate_fn_speech
 from model import SpeechCNN
 
-from torchaudio.datasets import SPEECHCOMMANDS
-
-import torch
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
-def plot_results_n_mels(n_mels_list, results, file_name):
-    plt.figure(figsize=(12, 4))
-
-    #Accuracy
-    plt.subplot(1, 2, 1)
-    plt.plot(n_mels_list, [results[n]["test_accuracy"] for n in n_mels_list], 'bo-')
-    plt.xlabel('Number of Mel Filterbanks')
-    plt.ylabel('Test Accuracy')
-    plt.title('n_mels vs Test Accuracy')
-
-    #Flops
-    plt.subplot(1, 2, 2)
-    plt.plot(n_mels_list, [results[n]["flops"] for n in n_mels_list], 'ro-')
-    plt.xlabel('Number of Mel Filterbanks')
-    plt.ylabel('FLOPs')
-    plt.title('n_mels vs Computational Complexity')
-
-    plt.tight_layout()
-    plt.savefig(file_name)
-
-def plot_results_n_groups(n_groups_list, results, file_name='groups_results.png'):
-    plt.figure(figsize=(15, 5))
-
-    plt.subplot(1, 3, 1)
-    plt.plot(n_groups_list, 
-            [results[n]["avg_epoch_time"] for n in n_groups_list], 'bo-')
-    plt.xlabel('Groups Parameter')
-    plt.ylabel('Average Epoch Time (s)')
-    plt.title('Groups vs Training Time')
-
-    plt.subplot(1, 3, 2)
-    plt.plot(n_groups_list, 
-            [results[n]["num_params"] for n in n_groups_list], 'ro-')
-    plt.xlabel('Groups Parameter')
-    plt.ylabel('Number of Parameters')
-    plt.title('Groups vs Model Size')
-
-    plt.subplot(1, 3, 3)
-    plt.plot(n_groups_list, 
-            [results[n]["test_accuracy"] for n in n_groups_list], 'go-')
-    plt.xlabel('Groups Parameter')
-    plt.ylabel('Test Accuracy')
-    plt.title('Groups vs Test Accuracy')
-
-    plt.tight_layout()
-    plt.savefig(file_name)
+from utils import plot_results_n_groups, plot_results_n_mels
 
 
-def train(train_loader, val_loader, test_loader, n_mels, groups, save_path='checkpoints'):
-    model = SpeechCNN(n_mels=n_mels, groups=groups)
+def train(train_loader, val_loader, test_loader, n_mels, groups, task_type='binary', save_path='checkpoints'):
+    model = SpeechCNN(n_mels=n_mels, groups=groups, task_type=task_type)
     trainer = pl.Trainer(
         max_epochs=5,
         enable_progress_bar=True,
@@ -70,15 +22,11 @@ def train(train_loader, val_loader, test_loader, n_mels, groups, save_path='chec
 
     trainer.fit(model, train_loader, val_loader)
 
-    epoch_times = [log["epoch_time"] for log in trainer.logged_metrics.values() 
-                if isinstance(log, torch.Tensor) and "epoch_time" in str(log)]
-
     results = {
         "train_loss": model.trainer.logged_metrics["train_loss_epoch"].item(),
         "val_accuracy": model.trainer.logged_metrics["val_accuracy"].item(),
         "num_params": num_params,
         "flops": flops,
-        "avg_epoch_time": sum(epoch_times) / len(epoch_times) if epoch_times else 0
     }
 
     trainer.test(model, test_loader)
@@ -105,18 +53,17 @@ def n_mels_train(train_loader, val_loader, test_loader):
         print(f"Test Accuracy: {metrics['test_accuracy']}")
         print(f"Validation Accuracy: {metrics['val_accuracy']}")
         print(f"Final Train Loss: {metrics['train_loss']}")
-        print(f"Average Epoch Time: {metrics['avg_epoch_time']}")
         print(f"Number of Parameters: {metrics['num_params']}")
         print(f"FLOPs: {metrics['flops']}")
         print()
 
 def groups_train(train_loader, val_loader, test_loader):
-    n_groups_list = [1, 4, 8, 16]
+    n_groups_list = [1, 2, 4, 8]
 
     results = {}
 
     for groups in n_groups_list:
-        print(f'Start training with n_mels: {groups}')
+        print(f'Start training with groups: {groups}')
         results[groups] = train(train_loader, val_loader, test_loader, 40, groups)
 
     plot_results_n_groups(n_groups_list, results, 'n_groups_diff_results.png')
@@ -127,22 +74,30 @@ def groups_train(train_loader, val_loader, test_loader):
         print(f"Test Accuracy: {metrics['test_accuracy']}")
         print(f"Validation Accuracy: {metrics['val_accuracy']}")
         print(f"Final Train Loss: {metrics['train_loss']}")
-        print(f"Average Epoch Time: {metrics['avg_epoch_time']}")
         print(f"Number of Parameters: {metrics['num_params']}")
         print(f"FLOPs: {metrics['flops']}")
         print()
 
+def train_full(train_loader, val_loader, test_loader):
+    results = train(train_loader, val_loader, test_loader, 20, 2, task_type='multiclass')
+    print(f"Test Accuracy: {results['test_accuracy']}")
+    print(f"Validation Accuracy: {results['val_accuracy']}")
+    print(f"Final Train Loss: {results['train_loss']}")
+    print(f"Number of Parameters: {results['num_params']}")
+    print(f"FLOPs: {results['flops']}")
+    print()
 
 
 if __name__ == '__main__':
-    train_dataset = BinarySpeechCommands("training")#FullSpeechCommands(subset='training')
-    val_dataset = BinarySpeechCommands("validation")#FullSpeechCommands(subset="validation")
-    test_dataset = BinarySpeechCommands("testing")#FullSpeechCommands(subset="testing")
+    train_dataset = FullSpeechCommands(subset='training')#BinarySpeechCommands("training")
+    val_dataset = FullSpeechCommands(subset="validation")#BinarySpeechCommands("validation")
+    test_dataset = FullSpeechCommands(subset="testing")#BinarySpeechCommands("testing")
 
     batch_size = 64
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, collate_fn=collate_fn_speech)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, collate_fn=collate_fn_speech)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4, collate_fn=collate_fn_speech)
 
-    n_mels_train(train_loader, val_loader, test_loader)
-    groups_train(train_loader, val_loader, test_loader)
+    #n_mels_train(train_loader, val_loader, test_loader)
+    #groups_train(train_loader, val_loader, test_loader)
+    train_full(train_loader, val_loader, test_loader)

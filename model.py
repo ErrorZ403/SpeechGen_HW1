@@ -9,7 +9,7 @@ from ptflops import get_model_complexity_info
 from melbanks.melbanks import LogMelFilterBanks
 
 class SpeechCNN(pl.LightningModule):
-    def __init__(self, n_mels=40, groups=1):
+    def __init__(self, n_mels=40, groups=1, task_type="binary"):
         super().__init__()
         self.save_hyperparameters()
 
@@ -29,16 +29,29 @@ class SpeechCNN(pl.LightningModule):
         
         self.flatten_size = 32 * 12
         
-        self.fc_layers = nn.Sequential(
-            nn.Linear(self.flatten_size, 128),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(128, 2)
-        )
+        if task_type == 'binary':
+            self.fc_layers = nn.Sequential(
+                nn.Linear(self.flatten_size, 128),
+                nn.ReLU(),
+                nn.Dropout(0.5),
+                nn.Linear(128, 2)
+            )
         
-        self.train_loss = torchmetrics.MeanMetric()
-        self.val_accuracy = torchmetrics.Accuracy(task="binary")
-        self.test_accuracy = torchmetrics.Accuracy(task="binary")
+            self.train_loss = torchmetrics.MeanMetric()
+            self.val_accuracy = torchmetrics.Accuracy(task=task_type)
+            self.test_accuracy = torchmetrics.Accuracy(task=task_type)
+
+        elif task_type == 'multiclass':
+            self.fc_layers = nn.Sequential(
+                nn.Linear(self.flatten_size, 128),
+                nn.ReLU(),
+                nn.Dropout(0.5),
+                nn.Linear(128, 35)
+            )
+        
+            self.train_loss = torchmetrics.MeanMetric()
+            self.val_accuracy = torchmetrics.Accuracy(task=task_type, num_classes=35)
+            self.test_accuracy = torchmetrics.Accuracy(task=task_type, num_classes=35)
 
     def on_train_epoch_start(self):
         self.epoch_start_time = time.time()
